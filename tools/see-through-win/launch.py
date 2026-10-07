@@ -20,6 +20,11 @@
    拡散の 30 ステップ（RX 6600 XT で 1〜2 時間）が終わった時点の latent を
    SEETHROUGH_LATENT_CACHE のフォルダに保存し、同じ画像・設定で再実行したときは
    拡散を飛ばしてデコードからやり直す。
+
+4. UNet の fp16 化（SEETHROUGH_UNET_FP16=1）
+   RX 6000 シリーズは bf16 の演算器を持たず、MIOpen の bf16 畳み込みも最適化されて
+   いないため遅い。LayerDiff の UNet だけを fp16 に変換して計算する（入出力は bf16 のまま）。
+   計算が NaN/Inf になったらその場で止める。
 """
 import hashlib
 import os
@@ -32,6 +37,7 @@ import torch.nn.functional as F
 CHUNK_BYTES = int(os.environ.get("SEETHROUGH_SDPA_CHUNK_MB", "512")) * 2**20
 VAE_TILE = os.environ.get("SEETHROUGH_VAE_TILE", "1") != "0"
 LATENT_CACHE = os.environ.get("SEETHROUGH_LATENT_CACHE", "")
+UNET_FP16 = os.environ.get("SEETHROUGH_UNET_FP16", "0") == "1"
 _sdpa = F.scaled_dot_product_attention
 
 
@@ -137,6 +143,41 @@ def patch_decoder(cache):
     TransparentVAEDecoder.forward = forward
 
 
+def _cast(obj, dtype):
+    if torch.is_tensor(obj):
+        return obj.to(dtype) if obj.is_floating_point() else obj
+    if isinstance(obj, dict):
+        return {k: _cast(v, dtype) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return type(obj)(_cast(v, dtype) for v in obj)
+    return obj
+
+
+def patch_unet_fp16():
+    """LayerDiff の UNet だけを fp16 で計算する（Marigold の深度推定は bf16 のまま）。"""
+    from modules.layerdiffuse.layerdiff3d import UNetFrameConditionModel
+    orig = UNetFrameConditionModel.forward
+
+    def forward(self, sample, timestep, encoder_hidden_states, *args, **kwargs):
+        if kwargs.get("group_index") is None:
+            return orig(self, sample, timestep, encoder_hidden_states, *args, **kwargs)
+        if not getattr(self, "_seethrough_fp16", False):
+            print("[launch] UNet を fp16 に変換します")
+            self.to(torch.float16)
+            self._seethrough_fp16 = True
+        in_dtype = sample.dtype
+        # timestep は精度を落とさないようそのまま渡す
+        out = orig(self, sample.to(torch.float16), timestep, _cast(encoder_hidden_states, torch.float16),
+                   *_cast(args, torch.float16), **_cast(kwargs, torch.float16))
+        first = out[0] if isinstance(out, tuple) else out.sample
+        if not torch.isfinite(first).all():
+            raise RuntimeError(
+                "fp16 で計算が破綻しました（NaN/Inf）。run.ps1 に -NoFp16 を付けて bf16 で実行してください。")
+        return _cast(out, in_dtype) if isinstance(out, tuple) else type(out)(sample=first.to(in_dtype))
+
+    UNetFrameConditionModel.forward = forward
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
@@ -147,6 +188,8 @@ def main():
     if cache is not None:
         cache.patch_timesteps()
     patch_decoder(cache)
+    if UNET_FP16:
+        patch_unet_fp16()
     # 通常の `python script.py` と同じく、スクリプトのフォルダから import できるようにする
     sys.path.insert(0, os.path.dirname(script))
     sys.argv = [script] + sys.argv[2:]

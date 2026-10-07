@@ -10,6 +10,7 @@ Windows の AMD Radeon RX 6600 XT（VRAM 8GB, `gfx1032`）でローカル実行�
 | --- | --- |
 | GPU ドライバ層 | AMD 公式の [TheRock](https://github.com/ROCm/TheRock) 版 ROCm（Windows ネイティブ、`pip` で入る） |
 | PyTorch | `torch[device-gfx1032]`（AMD のインデックス `repo.amd.com/rocm/whl-next` から） |
+| 速度対策 | RX 6000 は bf16 が苦手なので、UNet だけ fp16 で計算（`check_gpu.py --bench` で速さを比較できる） |
 | 8GB 対策 | 公式の `inference_psd_blockswap.py`（UNet を少しずつ GPU に載せ替える）を既定で使用 |
 | attention | Windows 版 ROCm には RX 6000 向けの省メモリ attention がないため、`launch.py` で attention を分割計算に差し替え（結果は同一） |
 
@@ -62,6 +63,8 @@ powershell -ExecutionPolicy Bypass -File run.ps1 -Image C:\path\to\character.png
 | --- | --- |
 | `-Image <フォルダ>` | フォルダ内の png / jpg / webp をすべて処理 |
 | `-Resolution 1024` | VRAM 不足（`out of memory`）になるときや速くしたいとき。既定 1280 |
+| `-Steps 20` | 拡散のステップ数（既定 30）。時間はほぼ比例して減るが、細部が少し粗くなる |
+| `-NoFp16` | UNet を元の bf16 で計算する。fp16 で「NaN/Inf」エラーが出たとき用（かなり遅い） |
 | `-TblrSplit` | 目・手などを左右別のレイヤーに分ける |
 | `-Mode offload` / `standard` | 公式の `--group_offload`（約 10GB）/ オフロードなし（12〜16GB）。6600 XT では使わない |
 | `-OutDir <フォルダ>` | 出力先 |

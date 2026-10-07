@@ -2,6 +2,7 @@
 
     python check_gpu.py          # 詳しいチェック
     python check_gpu.py --quick  # インストール直後の簡易チェック
+    python check_gpu.py --bench  # see-through で多い計算の速さを bf16 / fp16 で比べる
 
 GPU が使えないか、計算結果が CPU と合わなければ終了コード 1 を返す。
 """
@@ -15,6 +16,30 @@ import torch.nn.functional as F
 def close(a, b, tol):
     err = (a.float().cpu() - b.float().cpu()).abs().max().item()
     return err <= tol, err
+
+
+def bench():
+    """UNet の 1280px 推論で多い形の畳み込み・行列積を bf16 と fp16 で計る。"""
+    def timeit(fn, n=3):
+        fn()
+        torch.cuda.synchronize()
+        t = time.perf_counter()
+        for _ in range(n):
+            fn()
+        torch.cuda.synchronize()
+        return (time.perf_counter() - t) / n
+
+    print("ベンチマーク（数値が小さいほど速い）:")
+    for dtype in (torch.bfloat16, torch.float16):
+        x = torch.randn(4, 320, 160, 160, device="cuda", dtype=dtype)
+        w = torch.randn(320, 320, 3, 3, device="cuda", dtype=dtype)
+        conv = timeit(lambda: F.conv2d(x, w, padding=1))
+        a = torch.randn(4096, 4096, device="cuda", dtype=dtype)
+        mm = timeit(lambda: a @ a)
+        print(f"  {str(dtype):15s} 畳み込み {conv * 1000:7.1f} ms ({2 * 9 * 320 * 320 * 4 * 160 * 160 / conv / 1e12:5.2f} TFLOPS)"
+              f"   行列積 {mm * 1000:6.1f} ms ({2 * 4096 ** 3 / mm / 1e12:5.2f} TFLOPS)")
+        del x, w, a
+        torch.cuda.empty_cache()
 
 
 def main():
@@ -76,6 +101,9 @@ def main():
         torch.cuda.synchronize()
         dt = time.perf_counter() - t
         print(f"  bf16 matmul: {10 * 2 * 4096 ** 3 / dt / 1e12:.1f} TFLOPS")
+
+    if "--bench" in sys.argv:
+        bench()
 
     print("OK: GPU で計算できます" if ok else "NG: GPU の計算結果がおかしいです")
     return 0 if ok else 1

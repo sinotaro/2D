@@ -7,12 +7,17 @@
 #   blockswap … 既定。UNet を少しずつ GPU に載せ替えて 8GB でも動かす（RX 6600 XT 向け）
 #   offload   … 公式の --group_offload（約 10GB 必要）
 #   standard  … オフロードなし（12〜16GB 必要）
+#
+# -Steps 20   … 拡散のステップ数（既定 30）。減らすとその分速くなるが、細部が少し粗くなる
+# -NoFp16     … UNet を元の bf16 のまま計算する（fp16 で NaN エラーが出たとき用。かなり遅い）
 param(
     [Parameter(Mandatory = $true)][string]$Image,
     [ValidateSet("blockswap", "offload", "standard")][string]$Mode = "blockswap",
     [int]$Resolution = 1280,
     [string]$OutDir,
     [switch]$TblrSplit,     # 目・手などを左右別レイヤーに分ける
+    [int]$Steps = 30,
+    [switch]$NoFp16,
     [string]$InstallDir = (Join-Path $env:USERPROFILE "see-through")
 )
 
@@ -35,10 +40,14 @@ $env:PYTHONUTF8 = "1"
 $env:HF_HUB_DISABLE_TELEMETRY = "1"
 # 拡散（1〜2 時間）の結果をここに保存し、デコードで落ちても再実行時は続きからやり直す
 $env:SEETHROUGH_LATENT_CACHE = Join-Path $InstallDir "latent-cache"
+# RX 6000 シリーズは bf16 が遅いので、UNet は fp16 で計算する
+$env:SEETHROUGH_UNET_FP16 = if ($NoFp16) { "0" } else { "1" }
 
 $script = if ($Mode -eq "blockswap") { "inference\scripts\inference_psd_blockswap.py" } else { "inference\scripts\inference_psd.py" }
 $argv = @((Join-Path $PSScriptRoot "launch.py"), $script,
     "--srcp", $Image, "--save_dir", $OutDir, "--resolution", $Resolution, "--save_to_psd")
+$stepsFlag = if ($Mode -eq "blockswap") { "--num_inference_steps" } else { "--inference_steps" }
+$argv += @($stepsFlag, $Steps)
 if ($Mode -eq "offload") { $argv += "--group_offload" }
 if ($TblrSplit) { $argv += "--tblr_split" }
 
