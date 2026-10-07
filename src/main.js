@@ -30,10 +30,12 @@ function setStatus(text, isError = false) {
 
 async function main() {
   const renderer = new Renderer($('stage'));
-  const model = await (await fetch(MODEL_DIR + 'model.json')).json();
+  // 1ファイル版（vtuber.html）ではモデルが埋め込まれている
+  const embedded = window.__EMBEDDED_MODEL;
+  const model = embedded ? embedded.model : await (await fetch(MODEL_DIR + 'model.json')).json();
   const images = {};
   await Promise.all(model.layers.map(async (L) => {
-    images[L.file] = await loadImage(MODEL_DIR + L.file);
+    images[L.file] = await loadImage(embedded ? embedded.images[L.file] : MODEL_DIR + L.file);
   }));
   const rig = new Rig(renderer, model, images);
   const fb = model.faceBox || [0, 0, model.width, model.height];
