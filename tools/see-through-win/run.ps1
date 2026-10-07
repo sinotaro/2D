@@ -31,6 +31,8 @@ $env:MIOPEN_FIND_MODE = "FAST"
 # モデル（合計十数 GB）のダウンロード先。変えたいときは事前に HF_HOME を設定しておく
 if (-not $env:HF_HOME) { $env:HF_HOME = Join-Path $InstallDir "hf-cache" }
 $env:PYTHONUTF8 = "1"
+# Hugging Face ライブラリの利用統計（バージョン情報など）を送らない
+$env:HF_HUB_DISABLE_TELEMETRY = "1"
 
 $script = if ($Mode -eq "blockswap") { "inference\scripts\inference_psd_blockswap.py" } else { "inference\scripts\inference_psd.py" }
 $argv = @((Join-Path $PSScriptRoot "launch.py"), $script,
