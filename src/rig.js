@@ -182,9 +182,10 @@ export class Rig {
   bodyTransform(x, y, p, out) {
     const P = this.bodyPivot;
     const breath = Math.sin(this.time * 2 * Math.PI / 3.6) * 0.004;
-    let X = x + p.tx * 0.3 + p.yaw * 10;
-    let Y = P.y - (P.y - y) * (1 + breath) + p.ty * 0.15;
-    const r = p.roll * 0.15;
+    // 顔の位置の移動はほとんど体ごとの移動なので、体もしっかりついていく
+    let X = x + p.tx * 0.75 + p.yaw * 12;
+    let Y = P.y - (P.y - y) * (1 + breath) + p.ty * 0.5;
+    const r = p.roll * 0.12;
     const dx = X - P.x, dy = Y - P.y;
     const c = Math.cos(r), s = Math.sin(r);
     out[0] = P.x + dx * c - dy * s;
@@ -282,12 +283,14 @@ export class Rig {
       const span = layer.bottom - layer.top;
       for (let i = 0; i < n; i += 2) {
         const x = base[i], y = base[i + 1];
-        if (role.part === 'body') {
-          this.bodyTransform(x, y, p, tmp);
-        } else if (role.part === 'neck') {
+        if (role.part === 'body' || role.part === 'neck') {
+          // 首・服・ネックレスは同じ式で動かす（レイヤーごとに別の動きをするとずれて見える）。
+          // あごに近いほど頭に、下ほど体についていく。首から横に離れた肩はあまり引っぱらない。
           this.bodyTransform(x, y, p, bp);
           this.headTransform(x, y, 0, p, hp);
-          const w = smoothstep(this.chinY + 150, this.chinY - 20, y);
+          const wy = smoothstep(this.chinY + 330, this.chinY - 20, y);
+          const wx = 1 - smoothstep(150, 420, Math.abs(x - this.center.x));
+          const w = wy * (role.part === 'neck' ? 1 : wx);
           tmp[0] = lerp(bp[0], hp[0], w);
           tmp[1] = lerp(bp[1], hp[1], w);
         } else {

@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+from PIL import Image, ImageFilter
 from psd_tools import PSDImage
 
 
@@ -32,6 +33,46 @@ def split_lr(layer, cx):
         "L": alpha_bbox(a[:, :mid], layer.left, layer.top),
         "R": alpha_bbox(a[:, mid:], layer.left + mid, layer.top),
     }
+
+
+def fill_hair_gaps(out, model, close=11, fringe=30):
+    """髪の内側にある小さなすき間（背景が透けて見える穴）を後ろ髪の色で埋める。
+    前髪・顔の裏側も後ろ髪で埋めておく。外側の毛先の間（輪郭のギザギザ）は埋めない。"""
+    by = {L["name"]: L for L in model["layers"]}
+    back = by.get("back hair")
+    if not back:
+        return
+    W, H = model["width"], model["height"]
+    mask = Image.new("L", (W, H), 0)
+    for name in ("back hair", "front hair", "face", "ears"):
+        L = by.get(name)
+        if L:
+            a = Image.open(out / L["file"]).getchannel("A")
+            mask.paste(Image.fromarray(np.maximum(
+                np.array(mask.crop((L["x"], L["y"], L["x"] + L["w"], L["y"] + L["h"]))), np.array(a))),
+                (L["x"], L["y"]))
+    binary = mask.point(lambda v: 255 if v > 128 else 0)
+    closed = binary.filter(ImageFilter.MaxFilter(close)).filter(ImageFilter.MinFilter(close))
+    # 輪郭から fringe px より内側だけを対象にする
+    core = binary.filter(ImageFilter.MaxFilter(41)).filter(ImageFilter.MinFilter(41))
+    for _ in range(fringe // 10):
+        core = core.filter(ImageFilter.MinFilter(21))
+    # 頭の内側では、後ろ髪だけで穴がないようにする（向きを変えて前髪がずれても透けない）
+    holes = (np.array(closed) > 0) & (np.array(core) > 0)
+    # 穴のふちを少し広げてなじませる
+    holes = np.array(Image.fromarray(holes.astype(np.uint8) * 255).filter(ImageFilter.MaxFilter(3))) > 0
+    if not holes.any():
+        return
+    img = Image.open(out / back["file"]).convert("RGBA")
+    arr = np.array(img)
+    opaque = arr[:, :, 3] > 200
+    color = np.median(arr[opaque][:, :3], axis=0).astype(np.uint8)
+    sub = holes[back["y"]:back["y"] + back["h"], back["x"]:back["x"] + back["w"]]
+    fill = sub & (arr[:, :, 3] < 255)
+    arr[fill, :3] = np.where(arr[fill, 3:4] > 0, arr[fill, :3], color)
+    arr[fill, 3] = 255
+    Image.fromarray(arr).save(out / back["file"], optimize=True)
+    print(f"filled {int(fill.sum())} px of hair gaps")
 
 
 def main():
@@ -74,6 +115,7 @@ def main():
         m = by_name["mouth"]
         model["mouth"] = list(m.bbox)
 
+    fill_hair_gaps(out, model)
     (out / "model.json").write_text(json.dumps(model, indent=2, ensure_ascii=False))
     print(f"wrote {len(layers)} layers to {out}")
 
