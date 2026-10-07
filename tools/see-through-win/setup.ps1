@@ -89,18 +89,27 @@ Step "PyTorch (ROCm, $Gfx) をインストール"
 # torch の依存パッケージは先に PyPI から入れておき、torch 本体は AMD のインデックスだけから取る
 # （--extra-index-url で混ぜると PyPI の CUDA/CPU 版 torch が選ばれることがあるため）
 Run $Py @("-m", "pip", "install", "filelock", "typing-extensions", "sympy", "networkx", "jinja2", "fsspec", "numpy==2.2.6")
-$torchPkgs = @("torch[device-$Gfx]", "torchvision[device-$Gfx]", "torchaudio")
+# torch と torchvision は決まった組み合わせでしか動かない（ずれると "operator torchvision::nms does not exist"）。
+# 配布サーバーに揃っている組み合わせを新しい順に試す
+$torchPairs = @(
+    @{ torch = "2.14.*"; vision = "0.29.*" },
+    @{ torch = "2.13.*"; vision = "0.28.*" },
+    @{ torch = "2.12.*"; vision = "0.27.*" },
+    @{ torch = "2.11.*"; vision = "0.26.*" }
+)
 $channels = if ($Channel -eq "auto") { @("stable", "nightly") } else { @($Channel) }
 $ok = $false
-foreach ($ch in $channels) {
-    Write-Host "-> $ch チャンネル: $($Indexes[$ch])"
-    $argv = @("-m", "pip", "install", "--index-url", $Indexes[$ch]) + $torchPkgs
-    if ($ch -eq "nightly") { $argv += "--pre" }
-    & $Py @argv
-    if ($LASTEXITCODE -eq 0) {
+:outer foreach ($ch in $channels) {
+    foreach ($pair in $torchPairs) {
+        Write-Host "-> $ch チャンネル: torch $($pair.torch) + torchvision $($pair.vision)"
+        $argv = @("-m", "pip", "install", "--index-url", $Indexes[$ch],
+            "torch[device-$Gfx]==$($pair.torch)", "torchvision[device-$Gfx]==$($pair.vision)")
+        if ($ch -eq "nightly") { $argv += "--pre" }
+        & $Py @argv
+        if ($LASTEXITCODE -ne 0) { continue }
         & $Py (Join-Path $ToolDir "check_gpu.py") --quick
-        if ($LASTEXITCODE -eq 0) { $ok = $true; break }
-        Write-Warning "$ch 版の torch は入りましたが GPU で動きませんでした。次を試します。"
+        if ($LASTEXITCODE -eq 0) { $ok = $true; break outer }
+        Write-Warning "この組み合わせは GPU で動きませんでした。次を試します。"
     }
 }
 if (-not $ok) {

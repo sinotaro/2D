@@ -40,6 +40,17 @@ def main():
         out = a.to("cuda", dtype) @ b.to("cuda", dtype)
         checks.append((f"matmul {dtype}", *close(out, ref, tol)))
 
+    try:
+        import torchvision
+        boxes = torch.tensor([[0, 0, 10, 10], [1, 1, 11, 11], [50, 50, 60, 60]], dtype=torch.float32)
+        scores = torch.tensor([0.9, 0.8, 0.7])
+        keep = torchvision.ops.nms(boxes.cuda(), scores.cuda(), 0.5).cpu().tolist()
+        checks.append((f"torchvision {torchvision.__version__}", keep == [0, 2], 0.0))
+    except Exception as e:
+        print(f"  NG  torchvision: {e}")
+        print("      （torch と torchvision のバージョンの組み合わせが合っていない可能性）")
+        checks.append(("torchvision", False, float("nan")))
+
     if not quick:
         x, w = torch.randn(1, 64, 128, 128), torch.randn(64, 64, 3, 3)
         ref = F.conv2d(x, w, padding=1)
