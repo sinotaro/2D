@@ -124,7 +124,11 @@ Step "動作チェック"
 Run $Py @((Join-Path $ToolDir "check_gpu.py"))
 Push-Location $Repo
 try {
-    Run $Py @("-c", "import diffusers, transformers, psd_tools, utils.inference_utils, modules.layerdiffuse.layerdiff3d; print('see-through modules OK')")
+    $ImportLog = Join-Path $InstallDir "import_check.log"
+    & $Py (Join-Path $ToolDir "check_imports.py") $ImportLog
+    if ($LASTEXITCODE -ne 0) {
+        throw "読み込めないモジュールがあります（上の NG の行を参照）。詳細は $ImportLog にあります。"
+    }
 } finally {
     Pop-Location
 }

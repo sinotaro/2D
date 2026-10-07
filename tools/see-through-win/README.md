@@ -97,3 +97,4 @@ See-through のレイヤー名（`front hair`・`back hair`・`face`・`eyewhite
 | `run.ps1` / `run.bat` | 推論の実行 |
 | `launch.py` | attention を分割計算に差し替えてから see-through のスクリプトを実行 |
 | `check_gpu.py` | ROCm 版 PyTorch が GPU で正しく計算できるかの確認 |
+| `check_imports.py` | 必要なモジュールが読み込めるかの確認（失敗時は `import_check.log` に原因を保存） |
