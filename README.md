@@ -57,6 +57,7 @@ src/rig.js                パラメータ → 各レイヤーのメッシュ変�
 src/renderer.js           WebGL メッシュ描画
 assets/model/             PSD から書き出したレイヤー PNG と model.json
 tools/extract_psd.py      PSD → assets/model の書き出しスクリプト
+tools/replace_body.py     1 枚絵から首より下を切り出して体を差し替えるスクリプト
 ```
 
 ## PSD を差し替える
@@ -74,3 +75,18 @@ python3 tools/extract_psd.py 新しいキャラ.psd assets/model
 - `eyewhite`・`irides`・`eyelash`・`eyebrow` は左右の目を 1 枚に入れたままで OK（顔の中心で自動的に左右に分けます）
 - 知らない名前のレイヤーは、位置に応じて頭か体に付いて動きます
 - 動きの大きさは `src/rig.js` の `ROLES`（奥行き `depth`、髪の揺れ `swing`）で調整できます
+
+## 首より下だけを差し替える
+
+白背景の 1 枚絵から首より下（首・服・アクセサリー）を切り出し、今の頭の下につなげられます。
+大きさは両目の間隔で自動的に合わせます。
+
+```sh
+python3 tools/replace_body.py 新しい絵.png --chin 680,652 --neck-center 699 --cut 738
+```
+
+- `--chin`：新しい絵のあごの先端の位置 (x,y)
+- `--neck-center`：あごのすぐ下での首の中心の x
+- `--cut`：これより上で首にかかっている髪を消す（襟のいちばん上より少し上の y）
+
+首・服・アクセサリーは 1 枚（`topwear.png`）にまとまり、首の上側（顔の裏）は自動で描き足されます。

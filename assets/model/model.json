@@ -12,30 +12,12 @@
       "opacity": 1.0
     },
     {
-      "name": "neck",
-      "file": "neck.png",
-      "x": 472,
-      "y": 490,
-      "w": 343,
-      "h": 452,
-      "opacity": 1.0
-    },
-    {
       "name": "topwear",
       "file": "topwear.png",
-      "x": 213,
-      "y": 721,
-      "w": 854,
-      "h": 559,
-      "opacity": 1.0
-    },
-    {
-      "name": "neckwear",
-      "file": "neckwear.png",
-      "x": 523,
-      "y": 706,
-      "w": 243,
-      "h": 362,
+      "x": -30,
+      "y": 574,
+      "w": 1229,
+      "h": 859,
       "opacity": 1.0
     },
     {
