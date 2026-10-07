@@ -61,6 +61,9 @@ tools/extract_psd.py      PSD → assets/model の書き出しスクリプト
 
 ## PSD を差し替える
 
+1 枚絵からレイヤー分けした PSD を作るには [See-through](https://github.com/shitagaki-lab/see-through) が使えます。
+Windows + AMD Radeon（RX 6600 XT など）でローカル実行する手順は [`tools/see-through-win/`](tools/see-through-win/README.md) を参照してください。
+
 ```sh
 pip install psd-tools numpy
 python3 tools/extract_psd.py 新しいキャラ.psd assets/model
