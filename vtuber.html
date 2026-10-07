@@ -248,12 +248,14 @@ class Renderer {
     this.background = [0, 0, 0, 0];
   }
 
-  createTexture(source) {
+  // mipmap: 縮小表示されるテクスチャ用（幅・高さが 2 のべき乗のときだけ）
+  createTexture(source, mipmap = false) {
     const gl = this.gl;
     const t = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, t);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    if (mipmap) gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mipmap ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -348,7 +350,7 @@ const smoothstep = (e0, e1, x) => {
 // 頭全体は1つの丸い面として一緒に変形するので、ここは小さな値にしておく。
 // 大きくするとパーツ同士がずれて隙間ができる。
 const ROLES = {
-  'back hair': { part: 'head', depth: -0.03, swing: 0.4 },
+  'back hair': { part: 'head', depth: -0.01, swing: 0.4 },
   'neck': { part: 'neck' },
   'topwear': { part: 'body' },
   'neckwear': { part: 'body' },
@@ -360,7 +362,7 @@ const ROLES = {
   'irides': { part: 'head', depth: 0.032, deform: 'iris', mode: 'masked' },
   'eyelash': { part: 'head', depth: 0.034, deform: 'lash' },
   'eyebrow': { part: 'head', depth: 0.036, deform: 'brow' },
-  'front hair': { part: 'head', depth: 0.03, swing: 0.6 },
+  'front hair': { part: 'head', depth: 0.015, swing: 0.6 },
 };
 
 const DEFAULT_PARAMS = {
@@ -373,8 +375,9 @@ const DEFAULT_PARAMS = {
 function mouthTexture() {
   const c = document.createElement('canvas');
   c.width = 128;
-  c.height = 96;
+  c.height = 128; // ミップマップを使うため 2 のべき乗
   const g = c.getContext('2d');
+  g.scale(1, 128 / 96);
   g.beginPath();
   g.moveTo(4, 4);
   g.quadraticCurveTo(64, -2, 124, 4);
@@ -438,7 +441,7 @@ class Rig {
         cx: (x0 + x1) / 2,
         hw: (x1 - x0) / 2,
         closeY: y0 + h * 0.8, // まぶたが閉じる位置
-        lidY: y0 + 4, // 上まぶたの線
+        lidY: y0 + 6, // 上まぶたの線（この線より上がまぶた）
         lashTop: lash[1],
         lashHw: (lash[2] - lash[0]) / 2,
         lashCx: (lash[0] + lash[2]) / 2,
@@ -453,25 +456,43 @@ class Rig {
       const role = ROLES[L.name] || {
         part: L.y + L.h / 2 < this.pivot.y ? 'head' : 'body', depth: 0.02,
       };
-      const fine = role.deform === 'lash' || role.deform === 'eyewhite' || role.deform === 'iris';
+      const fine = ['lash', 'eyewhite', 'iris', 'mouth'].includes(role.deform);
       const cols = Math.min(80, Math.max(2, Math.ceil(L.w / (fine ? 6 : 20))));
       const rows = Math.min(64, Math.max(2, Math.ceil(L.h / (fine ? 2 : 20))));
+      if (L.name === 'mouth') {
+        this.addMouth(renderer, L, images[L.file], role);
+        continue;
+      }
       const tex = renderer.createTexture(images[L.file]);
       const mesh = new Mesh(gl, tex, L.x, L.y, L.w, L.h, cols, rows);
-      const layer = { name: L.name, role, mesh, opacity: L.opacity ?? 1, top: L.y, bottom: L.y + L.h };
-      if (L.name === 'mouth') {
-        // 口の中を口レイヤーの直前に差し込む
-        const w = this.mouth.hw * 2 * 0.95;
-        const inner = new Mesh(gl, renderer.createTexture(mouthTexture()),
-          this.mouth.cx - w / 2, this.mouth.y - 1, w, 1, 8, 6);
-        this.layers.push({ name: 'mouth inner', role: { part: 'head', depth: 0.155, deform: 'mouthInner' }, mesh: inner, opacity: 1 });
-      }
-      this.layers.push(layer);
+      this.layers.push({ name: L.name, role, mesh, opacity: L.opacity ?? 1, top: L.y, bottom: L.y + L.h });
     }
 
     // 髪揺れ用のばね
     this.spring = { x: 0, y: 0, vx: 0, vy: 0, px: null, py: null };
     this.time = 0;
+  }
+
+  // 口：口の中を足し、口レイヤーを「線（上唇）」と「その下のハイライト（下唇）」に切り分ける。
+  // 下唇側は口を開くと下端と一緒に下がる。メッシュで引き伸ばすと筋が出るので別の板にする。
+  addMouth(renderer, L, img, role) {
+    const gl = renderer.gl;
+    const M = this.mouth;
+    const w = M.hw * 2 * 0.95;
+    const inner = new Mesh(gl, renderer.createTexture(mouthTexture(), true), M.cx - w / 2, M.y - 1, w, 1, 8, 6);
+    this.layers.push({ name: 'mouth inner', role: { ...role, deform: 'mouthInner' }, mesh: inner, opacity: 1 });
+
+    const split = clamp(Math.round(M.y + 2.5) - L.y, 1, L.h - 1); // 線のすぐ下の透明な行
+    const parts = [['mouth', 0, split], ['mouthLower', split, L.h]];
+    for (const [deform, y0, y1] of parts) {
+      const c = document.createElement('canvas');
+      c.width = L.w;
+      c.height = y1 - y0;
+      c.getContext('2d').drawImage(img, 0, y0, L.w, y1 - y0, 0, 0, L.w, y1 - y0);
+      const mesh = new Mesh(gl, renderer.createTexture(c), L.x, L.y + y0, L.w, y1 - y0,
+        Math.max(2, Math.ceil(L.w / 6)), 2);
+      this.layers.push({ name: `mouth:${deform}`, role: { ...role, deform }, mesh, opacity: L.opacity ?? 1 });
+    }
   }
 
   // 頭パーツの一点を、顔の向き＋傾き＋移動で変換
@@ -520,24 +541,27 @@ class Rig {
       if (!e) return;
       const open = clamp(side === 'L' ? p.eyeL : p.eyeR, 0, 1);
       if (kind === 'iris') {
+        // 黒目はつぶさずに動かすだけ。まぶたで隠れる分は白目のマスクで切り取られる
         out[0] = x + p.gazeX * e.hw * 0.28;
-        y += p.gazeY * 5;
-      }
-      if (kind === 'eyewhite' || kind === 'iris') {
-        out[1] = e.closeY + (y - e.closeY) * open;
+        out[1] = y + p.gazeY * 5;
         return;
       }
-      // まつ毛：上まぶたを closeY まで下ろす（目尻・目頭はあまり動かさない）
+      // 上まぶたを closeY まで下ろす（目尻・目頭はあまり動かさない）。
+      // まぶたより上（まぶたの線・二重の線）は閉じるほど薄くつぶして、閉じた目が太い帯にならないようにする
       const t = 1 - open;
       const ux = clamp((x - e.lashCx) / e.lashHw, -1, 1);
-      const wx = 1 - 0.75 * ux * ux;
-      const S = (e.closeY - 2 - e.lidY) * t * wx;
+      const S = (e.closeY - 1 - e.lidY) * t * (1 - 0.5 * ux * ux);
+      let Y = y;
       if (y <= e.lidY) {
-        const k = clamp((y - e.lashTop) / Math.max(1, e.lidY - e.lashTop), 0, 1);
-        out[1] = y + S * (0.5 + 0.5 * k);
+        Y = y + S - (e.lidY - y) * 0.55 * t;
       } else if (y <= e.closeY) {
-        out[1] = y + S * (e.closeY - y) / (e.closeY - e.lidY);
+        Y = y + S * (e.closeY - y) / (e.closeY - e.lidY);
+      } else if (kind === 'eyewhite') {
+        Y = y - (y - e.closeY) * t;
       }
+      // 白目は閉じきったら必ず消えるように closeY に集める（黒目もこのマスクで消える）
+      if (kind === 'eyewhite') Y += (e.closeY - Y) * t * t * t;
+      out[1] = Y;
       return;
     }
     if (kind === 'brow') {
@@ -546,17 +570,21 @@ class Rig {
       out[1] = y - p.brow * 9 + (1 - clamp(open, 0, 1)) * 3;
       return;
     }
-    if (kind === 'mouth' || kind === 'mouthInner') {
+    if (kind === 'mouth' || kind === 'mouthInner' || kind === 'mouthLower') {
       const M = this.mouth;
       const widen = 1 + 0.22 * p.smile - 0.1 * p.mouthOpen;
       const u = clamp((x - M.cx) / M.hw, -1.2, 1.2);
       out[0] = M.cx + (x - M.cx) * widen;
-      const curve = -p.smile * 5 * u * u;
+      const curve = -p.smile * 7 * u * u;
+      // 口を開いたときの下端までの深さ
+      const depthPx = M.hw * 2 * 0.4 * p.mouthOpen * (1 - 0.35 * u * u);
       if (kind === 'mouth') {
         out[1] = y + curve - p.mouthOpen * 2;
+      } else if (kind === 'mouthLower') {
+        // 下唇のハイライトは開いた口の下端についていく
+        out[1] = y + curve - p.mouthOpen * 2 + depthPx;
       } else {
         // 上端は口の線、下端は開き具合に応じて下がる
-        const depthPx = M.hw * 2 * 0.5 * p.mouthOpen * (1 - 0.35 * u * u);
         const k = (y - (M.y - 1)); // 0..1 (rest 高さ 1)
         out[1] = M.y - 1 - p.mouthOpen * 2 + curve + k * depthPx;
       }
@@ -803,7 +831,8 @@ class FaceTracker {
       pitch: clamp((r.pitchRaw - n.pitchRaw) * 3.2, -0.6, 0.6),
       roll: clamp(r.roll, -0.6, 0.6), // 傾きは目の線の角度そのもの（基準合わせ不要）
       tx: clamp((r.cx - n.cx) * scale * 60, -80, 80),
-      ty: clamp((r.cy - n.cy) * scale * 40, -50, 50),
+      // 上下の移動は控えめに（大きいと首が伸び縮みして見える）
+      ty: clamp((r.cy - n.cy) * scale * 20, -20, 20),
       eyeL, eyeR,
       gazeX: clamp((r.gazeX - n.gazeX) * 2.2, -1, 1),
       gazeY: clamp((r.gazeY - n.gazeY) * 1.5, -1, 1),

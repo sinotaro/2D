@@ -176,7 +176,8 @@ export class FaceTracker {
       pitch: clamp((r.pitchRaw - n.pitchRaw) * 3.2, -0.6, 0.6),
       roll: clamp(r.roll, -0.6, 0.6), // 傾きは目の線の角度そのもの（基準合わせ不要）
       tx: clamp((r.cx - n.cx) * scale * 60, -80, 80),
-      ty: clamp((r.cy - n.cy) * scale * 40, -50, 50),
+      // 上下の移動は控えめに（大きいと首が伸び縮みして見える）
+      ty: clamp((r.cy - n.cy) * scale * 20, -20, 20),
       eyeL, eyeR,
       gazeX: clamp((r.gazeX - n.gazeX) * 2.2, -1, 1),
       gazeY: clamp((r.gazeY - n.gazeY) * 1.5, -1, 1),
