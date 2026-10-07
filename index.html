@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PSD Face Tracker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-bg="transparent">
+  <canvas id="stage"></canvas>
+
+  <video id="video" class="mirror" playsinline muted hidden></video>
+
+  <div id="panel">
+    <div class="row">
+      <button id="start" class="primary">カメラ開始</button>
+      <button id="calibrate" title="正面を向いた状態を基準にします (C)">正面リセット</button>
+      <button id="hide-ui" title="H キーでも切り替え">UIを隠す</button>
+    </div>
+    <div class="row">
+      <label>カメラ <select id="camera"><option value="">既定のカメラ</option></select></label>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="mirror" checked> 鏡のように動かす</label>
+      <label><input type="checkbox" id="preview"> カメラ映像を表示</label>
+    </div>
+    <div class="row">
+      <label>なめらかさ <input type="range" id="smooth" min="0" max="1" step="0.05" value="0.5"></label>
+      <label>ズーム <input type="range" id="zoom" min="1" max="2.5" step="0.05" value="1"></label>
+    </div>
+    <div class="row">
+      <label>背景
+        <select id="bg">
+          <option value="transparent">透過</option>
+          <option value="green">グリーンバック</option>
+          <option value="blue">ブルーバック</option>
+          <option value="white">白</option>
+        </select>
+      </label>
+      <span id="fps"></span>
+    </div>
+    <p id="status"></p>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

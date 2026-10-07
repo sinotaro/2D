@@ -1,0 +1,179 @@
+{
+  "width": 1280,
+  "height": 1280,
+  "layers": [
+    {
+      "name": "back hair",
+      "file": "back_hair.png",
+      "x": 301,
+      "y": 14,
+      "w": 656,
+      "h": 626,
+      "opacity": 1.0
+    },
+    {
+      "name": "neck",
+      "file": "neck.png",
+      "x": 472,
+      "y": 490,
+      "w": 343,
+      "h": 452,
+      "opacity": 1.0
+    },
+    {
+      "name": "topwear",
+      "file": "topwear.png",
+      "x": 213,
+      "y": 721,
+      "w": 854,
+      "h": 559,
+      "opacity": 1.0
+    },
+    {
+      "name": "neckwear",
+      "file": "neckwear.png",
+      "x": 523,
+      "y": 706,
+      "w": 243,
+      "h": 362,
+      "opacity": 1.0
+    },
+    {
+      "name": "ears",
+      "file": "ears.png",
+      "x": 418,
+      "y": 419,
+      "w": 438,
+      "h": 122,
+      "opacity": 1.0
+    },
+    {
+      "name": "face",
+      "file": "face.png",
+      "x": 441,
+      "y": 148,
+      "w": 394,
+      "h": 521,
+      "opacity": 1.0
+    },
+    {
+      "name": "nose",
+      "file": "nose.png",
+      "x": 612,
+      "y": 465,
+      "w": 44,
+      "h": 67,
+      "opacity": 1.0
+    },
+    {
+      "name": "mouth",
+      "file": "mouth.png",
+      "x": 609,
+      "y": 571,
+      "w": 64,
+      "h": 12,
+      "opacity": 1.0
+    },
+    {
+      "name": "eyewhite",
+      "file": "eyewhite.png",
+      "x": 489,
+      "y": 419,
+      "w": 296,
+      "h": 40,
+      "opacity": 1.0
+    },
+    {
+      "name": "irides",
+      "file": "irides.png",
+      "x": 520,
+      "y": 417,
+      "w": 236,
+      "h": 42,
+      "opacity": 1.0
+    },
+    {
+      "name": "eyelash",
+      "file": "eyelash.png",
+      "x": 469,
+      "y": 406,
+      "w": 337,
+      "h": 58,
+      "opacity": 1.0
+    },
+    {
+      "name": "eyebrow",
+      "file": "eyebrow.png",
+      "x": 466,
+      "y": 371,
+      "w": 344,
+      "h": 20,
+      "opacity": 1.0
+    },
+    {
+      "name": "front hair",
+      "file": "front_hair.png",
+      "x": 375,
+      "y": 106,
+      "w": 526,
+      "h": 403,
+      "opacity": 1.0
+    }
+  ],
+  "faceBox": [
+    441,
+    148,
+    835,
+    669
+  ],
+  "eyes": {
+    "L": {
+      "white": [
+        490,
+        420,
+        587,
+        458
+      ],
+      "lash": [
+        470,
+        406,
+        592,
+        463
+      ]
+    },
+    "R": {
+      "white": [
+        688,
+        419,
+        785,
+        457
+      ],
+      "lash": [
+        685,
+        406,
+        805,
+        462
+      ]
+    }
+  },
+  "brows": {
+    "L": [
+      467,
+      372,
+      606,
+      391
+    ],
+    "R": [
+      673,
+      372,
+      808,
+      388
+    ]
+  },
+  "mouth": [
+    609,
+    571,
+    673,
+    583
+  ]
+}

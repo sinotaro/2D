@@ -1,0 +1,85 @@
+:root {
+  --panel-bg: rgba(20, 22, 28, 0.82);
+  --panel-fg: #eef0f4;
+  --accent: #5b8cff;
+  --checker-a: #2a2d34;
+  --checker-b: #23262c;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  color: var(--panel-fg);
+}
+
+body {
+  background-color: var(--checker-a);
+  background-image:
+    linear-gradient(45deg, var(--checker-b) 25%, transparent 25%, transparent 75%, var(--checker-b) 75%),
+    linear-gradient(45deg, var(--checker-b) 25%, transparent 25%, transparent 75%, var(--checker-b) 75%);
+  background-size: 32px 32px;
+  background-position: 0 0, 16px 16px;
+}
+body[data-bg="green"] { background: #00ff00; }
+body[data-bg="blue"] { background: #0000ff; }
+body[data-bg="white"] { background: #ffffff; }
+
+#stage {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+#video {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: min(240px, 35vw);
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  background: #000;
+}
+#video.mirror { transform: scaleX(-1); }
+
+#panel {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--panel-bg);
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+label { display: inline-flex; gap: 6px; align-items: center; }
+input[type="range"] { width: 110px; }
+
+button, select {
+  font: inherit;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+select option { color: #000; }
+button.primary { background: var(--accent); border-color: var(--accent); font-weight: 600; }
+button:disabled { opacity: 0.5; cursor: wait; }
+
+#status { margin: 0; font-size: 13px; opacity: 0.85; line-height: 1.5; }
+#status.error { color: #ff8a8a; opacity: 1; }
+#fps { margin-left: auto; font-size: 12px; opacity: 0.6; font-variant-numeric: tabular-nums; }
+
+body.ui-hidden #panel, body.ui-hidden #video { display: none; }
