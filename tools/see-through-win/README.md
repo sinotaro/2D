@@ -83,6 +83,17 @@ See-through のレイヤー名（`front hair`・`back hair`・`face`・`eyewhite
 - **`setup.ps1` で torch のインストールに失敗する**：`-Channel nightly` を付けて再実行
 - **`out of memory`**：`-Resolution 1024`、それでもだめなら `$env:SEETHROUGH_SDPA_CHUNK_MB=256` を設定してから実行。
   ブラウザなど VRAM を使う他のアプリも閉じてください
+- **`unspecified launch failure` / `hipErrorLaunchFailure` で落ちる**：GPU の 1 回の計算が長すぎて、
+  Windows が GPU をリセットしています（TDR）。拡散の結果は `latent-cache` に保存されているので、
+  もう一度 `run.bat` を実行すれば拡散を飛ばしてデコードからやり直せます。それでも落ちる場合は、
+  管理者の PowerShell で次を実行して再起動し、タイムアウトを 2 秒から 60 秒に延ばしてください
+  （元に戻すときは `Remove-ItemProperty` で 2 つの値を削除して再起動）:
+
+  ```powershell
+  $k = "HKLM:\System\CurrentControlSet\Control\GraphicsDrivers"
+  New-ItemProperty -Path $k -Name TdrDelay -PropertyType DWord -Value 60 -Force
+  New-ItemProperty -Path $k -Name TdrDdiDelay -PropertyType DWord -Value 60 -Force
+  ```
 - **初回の実行がとても遅い**：MIOpen が畳み込みカーネルをコンパイル・キャッシュしています。2 回目からは速くなります
 - **RAM 不足で落ちる**：Windows の仮想メモリ（ページファイル）を 32GB 以上にしてください
 - **ROCm 版でどうしても動かない**：RX 6600 XT は AMD の公式サポート外（コミュニティ扱い）です。
@@ -95,6 +106,6 @@ See-through のレイヤー名（`front hair`・`back hair`・`face`・`eyewhite
 | --- | --- |
 | `setup.ps1` / `setup.bat` | 環境構築 |
 | `run.ps1` / `run.bat` | 推論の実行 |
-| `launch.py` | attention を分割計算に差し替えてから see-through のスクリプトを実行 |
+| `launch.py` | attention の分割計算・VAE デコードのタイル分割・生成結果の保存を入れてから see-through のスクリプトを実行 |
 | `check_gpu.py` | ROCm 版 PyTorch が GPU で正しく計算できるかの確認 |
 | `check_imports.py` | 必要なモジュールが読み込めるかの確認（失敗時は `import_check.log` に原因を保存） |

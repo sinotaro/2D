@@ -33,6 +33,8 @@ if (-not $env:HF_HOME) { $env:HF_HOME = Join-Path $InstallDir "hf-cache" }
 $env:PYTHONUTF8 = "1"
 # Hugging Face ライブラリの利用統計（バージョン情報など）を送らない
 $env:HF_HUB_DISABLE_TELEMETRY = "1"
+# 拡散（1〜2 時間）の結果をここに保存し、デコードで落ちても再実行時は続きからやり直す
+$env:SEETHROUGH_LATENT_CACHE = Join-Path $InstallDir "latent-cache"
 
 $script = if ($Mode -eq "blockswap") { "inference\scripts\inference_psd_blockswap.py" } else { "inference\scripts\inference_psd.py" }
 $argv = @((Join-Path $PSScriptRoot "launch.py"), $script,
