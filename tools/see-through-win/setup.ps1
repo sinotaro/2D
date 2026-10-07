@@ -30,16 +30,38 @@ function Run($exe, [string[]]$argv) {
     if ($LASTEXITCODE -ne 0) { throw "失敗しました: $exe $($argv -join ' ')" }
 }
 
+function Refresh-Path {
+    $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+                [Environment]::GetEnvironmentVariable("Path", "User")
+}
+function Test-Python {
+    $ErrorActionPreference = "Continue"  # py が stderr に出すメッセージで止まらないように
+    if (-not (Get-Command py -ErrorAction SilentlyContinue)) { return $false }
+    & py "-$PythonVersion" -c "import struct, sys; sys.exit(0 if struct.calcsize('P') == 8 else 1)" 2>&1 | Out-Null
+    return ($LASTEXITCODE -eq 0)
+}
+# 足りないツールを winget（Windows 10/11 標準のパッケージ管理）で入れる
+function Install-WithWinget($id, $name, $url) {
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        throw "$name が見つかりません。$url からインストールして、PowerShell を開き直してから再実行してください。"
+    }
+    Write-Host "$name が無いので winget でインストールします..."
+    & winget install --id $id -e --source winget --accept-package-agreements --accept-source-agreements
+    Refresh-Path
+}
+
 Step "前提ツールの確認"
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-    throw "git が見つかりません。https://git-scm.com/download/win からインストールしてください。"
+    Install-WithWinget "Git.Git" "Git" "https://git-scm.com/download/win"
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        throw "Git のインストール後も git が見つかりません。ウィンドウを閉じて setup.bat をもう一度実行してください。"
+    }
 }
-if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
-    throw "Python ランチャー (py) が見つかりません。python.org から Python $PythonVersion (64bit) をインストールしてください。"
-}
-& py "-$PythonVersion" -c "import struct, sys; sys.exit(0 if struct.calcsize('P') == 8 else 1)"
-if ($LASTEXITCODE -ne 0) {
-    throw "Python $PythonVersion (64bit) が見つかりません。python.org からインストールしてください（py -$PythonVersion で起動できる状態に）。"
+if (-not (Test-Python)) {
+    Install-WithWinget "Python.Python.$PythonVersion" "Python $PythonVersion" "https://www.python.org/downloads/windows/"
+    if (-not (Test-Python)) {
+        throw "Python $PythonVersion のインストール後も py -$PythonVersion で起動できません。ウィンドウを閉じて setup.bat をもう一度実行してください。"
+    }
 }
 git config --global core.longpaths true
 

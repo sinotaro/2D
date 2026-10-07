@@ -19,8 +19,8 @@ WSL2 や ZLUDA、DirectML は使いません（RX 6000 シリーズは WSL2 の 
 
 - Windows 10 / 11（64bit）
 - **AMD Software: Adrenalin Edition の最新ドライバ**（古いと ROCm から GPU が見えません）
-- [Python 3.12](https://www.python.org/downloads/windows/)（64bit、「py launcher」にチェックを入れてインストール）
-- [Git for Windows](https://git-scm.com/download/win)
+- [Python 3.12](https://www.python.org/downloads/windows/) と [Git for Windows](https://git-scm.com/download/win)
+  （入っていなければ setup が winget で自動インストールします）
 - メインメモリ 16GB 以上（32GB 推奨。blockswap はモデルの大部分を RAM に置きます）
 - 空きディスク 約 30GB（Python パッケージ 数 GB ＋ モデル 十数 GB）
 
