@@ -343,21 +343,24 @@ const smoothstep = (e0, e1, x) => {
   return t * t * (3 - 2 * t);
 };
 
-// レイヤー名ごとの役割。depth は顔の向きを変えたときの「奥行き」（大きいほど手前で大きく動く）
+// レイヤー名ごとの役割。
+// depth は顔の向きを変えたときの「奥行き」による追加のずれ（頭の半径に対する割合）。
+// 頭全体は1つの丸い面として一緒に変形するので、ここは小さな値にしておく。
+// 大きくするとパーツ同士がずれて隙間ができる。
 const ROLES = {
-  'back hair': { part: 'head', depth: -0.28, swing: 0.7 },
+  'back hair': { part: 'head', depth: -0.03, swing: 0.4 },
   'neck': { part: 'neck' },
   'topwear': { part: 'body' },
   'neckwear': { part: 'body' },
-  'ears': { part: 'head', depth: -0.12 },
+  'ears': { part: 'head', depth: -0.02 },
   'face': { part: 'head', depth: 0 },
-  'nose': { part: 'head', depth: 0.3 },
-  'mouth': { part: 'head', depth: 0.16, deform: 'mouth' },
-  'eyewhite': { part: 'head', depth: 0.12, deform: 'eyewhite', mode: 'mask' },
-  'irides': { part: 'head', depth: 0.13, deform: 'iris', mode: 'masked' },
-  'eyelash': { part: 'head', depth: 0.14, deform: 'lash' },
-  'eyebrow': { part: 'head', depth: 0.17, deform: 'brow' },
-  'front hair': { part: 'head', depth: 0.24, swing: 1 },
+  'nose': { part: 'head', depth: 0.06 },
+  'mouth': { part: 'head', depth: 0.035, deform: 'mouth' },
+  'eyewhite': { part: 'head', depth: 0.03, deform: 'eyewhite', mode: 'mask' },
+  'irides': { part: 'head', depth: 0.032, deform: 'iris', mode: 'masked' },
+  'eyelash': { part: 'head', depth: 0.034, deform: 'lash' },
+  'eyebrow': { part: 'head', depth: 0.036, deform: 'brow' },
+  'front hair': { part: 'head', depth: 0.03, swing: 0.6 },
 };
 
 const DEFAULT_PARAMS = {
@@ -407,7 +410,19 @@ class Rig {
     this.model = model;
     const fb = model.faceBox || [0, 0, model.width, model.height];
     this.center = { x: (fb[0] + fb[2]) / 2, y: (fb[1] + fb[3]) / 2 };
-    this.radius = { x: (fb[2] - fb[0]) / 2, y: (fb[3] - fb[1]) / 2 };
+    // 頭全体（髪・耳を含む）の範囲。向きを変えるときはこの範囲を1つの丸い面として変形する
+    const hb = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const L of model.layers) {
+      if (ROLES[L.name]?.part !== 'head') continue;
+      hb[0] = Math.min(hb[0], L.x); hb[1] = Math.min(hb[1], L.y);
+      hb[2] = Math.max(hb[2], L.x + L.w); hb[3] = Math.max(hb[3], L.y + L.h);
+    }
+    if (!isFinite(hb[0])) hb.splice(0, 4, ...fb);
+    this.head = {
+      cx: (hb[0] + hb[2]) / 2,
+      rx: (hb[2] - hb[0]) / 2,
+      ry: Math.max(hb[3] - this.center.y, this.center.y - hb[1]),
+    };
     // 首の付け根（頭の傾きの回転中心）
     this.pivot = { x: this.center.x, y: fb[3] - 30 };
     this.bodyPivot = { x: this.center.x, y: model.height + 40 };
@@ -436,7 +451,7 @@ class Rig {
     const gl = renderer.gl;
     for (const L of model.layers) {
       const role = ROLES[L.name] || {
-        part: L.y + L.h / 2 < this.pivot.y ? 'head' : 'body', depth: 0.05,
+        part: L.y + L.h / 2 < this.pivot.y ? 'head' : 'body', depth: 0.02,
       };
       const fine = role.deform === 'lash' || role.deform === 'eyewhite' || role.deform === 'iris';
       const cols = Math.min(80, Math.max(2, Math.ceil(L.w / (fine ? 6 : 20))));
@@ -461,14 +476,15 @@ class Rig {
 
   // 頭パーツの一点を、顔の向き＋傾き＋移動で変換
   headTransform(x, y, depth, p, out) {
-    const { center: C, radius: R } = this;
-    const u = clamp((x - C.x) / R.x, -1, 1);
-    const v = clamp((y - C.y) / R.y, -1, 1);
-    // 顔の中央ほど手前に膨らんでいる（球っぽい）とみなす
-    const bulge = Math.sqrt(Math.max(0, 1 - u * u)) * (1 - 0.4 * v * v);
-    const z = depth + 0.32 * bulge;
-    let X = x + p.yaw * R.x * z - Math.abs(p.yaw) * (x - C.x) * 0.06;
-    let Y = y + p.pitch * R.y * z * 0.55;
+    const H = this.head;
+    const u = clamp((x - H.cx) / H.rx, -1, 1);
+    const v = clamp((y - this.center.y) / H.ry, -1, 1);
+    // 頭全体を1つの丸い面とみなす：中央ほど大きく動き、外側の輪郭はほとんど動かない。
+    // 全レイヤーが同じ変形を共有するので、後ろ髪・顔・前髪の間に隙間ができない。
+    const bx = Math.cos(u * Math.PI / 2) * (1 - 0.35 * v * v);
+    const by = Math.cos(v * Math.PI / 2) * (1 - 0.35 * u * u);
+    let X = x + p.yaw * H.rx * (0.2 * bx + depth + 0.05);
+    let Y = y + p.pitch * H.ry * (0.13 * by + depth * 0.6 + 0.03);
     X += p.tx;
     Y += p.ty;
     const dx = X - this.pivot.x, dy = Y - this.pivot.y;
@@ -551,7 +567,7 @@ class Rig {
     this.time += dt;
     // 髪の揺れ：頭の動きに遅れてついてくるばね
     const anchor = [0, 0];
-    this.headTransform(this.center.x, this.center.y, 0.2, p, anchor);
+    this.headTransform(this.center.x, this.center.y, 0, p, anchor);
     const sp = this.spring;
     if (sp.px === null) { sp.px = anchor[0]; sp.py = anchor[1]; }
     const k = 120, d = 11, h = Math.min(dt, 1 / 30);
@@ -562,8 +578,8 @@ class Rig {
     sp.py = anchor[1];
     sp.vx += (-k * sp.x - d * sp.vx) * h;
     sp.vy += (-k * sp.y - d * sp.vy) * h;
-    sp.x = clamp(sp.x + sp.vx * h, -40, 40);
-    sp.y = clamp(sp.y + sp.vy * h, -25, 25);
+    sp.x = clamp(sp.x + sp.vx * h, -18, 18);
+    sp.y = clamp(sp.y + sp.vy * h, -10, 10);
 
     const tmp = [0, 0], hp = [0, 0], bp = [0, 0];
     for (const layer of this.layers) {
@@ -577,7 +593,7 @@ class Rig {
           this.bodyTransform(x, y, p, tmp);
         } else if (role.part === 'neck') {
           this.bodyTransform(x, y, p, bp);
-          this.headTransform(x, y, -0.05, p, hp);
+          this.headTransform(x, y, 0, p, hp);
           const w = smoothstep(this.chinY + 150, this.chinY - 20, y);
           tmp[0] = lerp(bp[0], hp[0], w);
           tmp[1] = lerp(bp[1], hp[1], w);
@@ -585,7 +601,8 @@ class Rig {
           this.localDeform(role.deform, x, y, p, tmp);
           let lx = tmp[0], ly = tmp[1];
           if (role.swing) {
-            const w = Math.pow(clamp((y - layer.top) / span, 0, 1), 1.6) * role.swing;
+            // 根元（上）は固定、毛先（下）ほど揺れる
+            const w = Math.pow(clamp((y - layer.top) / span, 0, 1), 2.2) * role.swing;
             lx += sp.x * w;
             ly += sp.y * w * 0.5;
           }
